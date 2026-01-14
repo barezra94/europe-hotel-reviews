@@ -1,0 +1,17 @@
+[
+    {
+        "question": "What do reviewers from Australia say about hotels in Amsterdam?",
+        "expected_concept": "Australia",
+        "hotel_filter": null
+    },
+    {
+        "question": "Is the staff in Paris hotels described as friendly?",
+        "expected_concept": "Paris",
+        "hotel_filter": null
+    },
+    {
+        "question": "Is the breakfast good here?",
+        "expected_concept": "Britannia",
+        "hotel_filter": "Britannia International Hotel Canary Wharf"
+    }
+]
