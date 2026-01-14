@@ -13,5 +13,90 @@
         "question": "Is the breakfast good here?",
         "expected_concept": "Britannia",
         "hotel_filter": "Britannia International Hotel Canary Wharf"
+    },
+    {
+        "question": "Is the wifi reliable in London hotels?",
+        "expected_concept": "wifi",
+        "hotel_filter": null
+    },
+    {
+        "question": "Are London hotels crowded or noisy in June?",
+        "expected_concept": "June",
+        "hotel_filter": null
+    },
+    {
+        "question": "Is spring a good time to visit Rome based on reviews?",
+        "expected_concept": "spring",
+        "hotel_filter": null
+    },
+    {
+        "question": "What do reviewers say about the cleanliness of hotels in Barcelona?",
+        "expected_concept": "cleanliness",
+        "hotel_filter": null
+    },
+    {
+        "question": "Are the rooms spacious at this hotel?",
+        "expected_concept": "spacious",
+        "hotel_filter": "Grand Royale London Hyde Park"
+    },
+    {
+        "question": "What do reviewers from the United States mention about hotel locations in Paris?",
+        "expected_concept": "United States",
+        "hotel_filter": null
+    },
+    {
+        "question": "Is this hotel value for money?",
+        "expected_concept": "value",
+        "hotel_filter": "Intercontinental London The O2"
+    },
+    {
+        "question": "What do reviewers say about this hotel's location?",
+        "expected_concept": "location",
+        "hotel_filter": "Park Plaza County Hall London"
+    },
+    {
+        "question": "Are the beds comfortable in Amsterdam hotels?",
+        "expected_concept": "beds",
+        "hotel_filter": null
+    },
+    {
+        "question": "What do reviewers from Germany say about hotels in Vienna?",
+        "expected_concept": "Germany",
+        "hotel_filter": null
+    },
+    {
+        "question": "Is this hotel suitable for families with children?",
+        "expected_concept": "families",
+        "hotel_filter": "The Park Grand London Paddington"
+    },
+    {
+        "question": "What do reviewers mention about parking availability at hotels in London?",
+        "expected_concept": "parking",
+        "hotel_filter": null
+    },
+    {
+        "question": "Are the bathrooms clean and well-maintained at this hotel?",
+        "expected_concept": "bathrooms",
+        "hotel_filter": "The Principal London"
+    },
+    {
+        "question": "What do reviewers say about this hotel's restaurant or dining options?",
+        "expected_concept": "restaurant",
+        "hotel_filter": "Apex Temple Court Hotel"
+    },
+    {
+        "question": "Is this hotel quiet at night?",
+        "expected_concept": "quiet",
+        "hotel_filter": "Hotel Arena"
+    },
+    {
+        "question": "What do reviewers from the UK say about hotels in Edinburgh?",
+        "expected_concept": "UK",
+        "hotel_filter": null
+    },
+    {
+        "question": "Are this hotel's facilities modern and well-equipped?",
+        "expected_concept": "facilities",
+        "hotel_filter": "Radisson Blu Edwardian Grafton"
     }
 ]
