@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     data_path: str = "./data/Hotel_Reviews.csv"
     ingestion_batch_size: int = 100
     ingestion_sample_size: int = 5000
+    recency_weight: float = 0.3
 
 
 @lru_cache

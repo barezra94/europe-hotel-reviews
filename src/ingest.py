@@ -1,4 +1,5 @@
 import ast
+from datetime import datetime
 
 import chromadb
 import pandas as pd
@@ -21,12 +22,24 @@ def build_document(row):
 
 
 def build_metadata(row):
-    """Extract metadata fields for filtering."""
     tags = parse_tags(row["Tags"])
+
+    days_since_review = 0
+    review_date_str = row.get("Review_Date", None)
+    if pd.notna(review_date_str):
+        try:
+            review_date = datetime.strptime(str(review_date_str), "%m/%d/%Y")
+            today = datetime.now()
+            days_since_review = (today - review_date).days
+            days_since_review = max(0, days_since_review)
+        except (ValueError, TypeError) as e:
+            days_since_review = 3650
+
     return {
         "hotel_name": row["Hotel_Name"],
         "reviewer_nationality": row["Reviewer_Nationality"],
         "tags": ", ".join(tags),
+        "days_since_review": days_since_review,
     }
 
 
