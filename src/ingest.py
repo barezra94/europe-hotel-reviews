@@ -48,7 +48,8 @@ def run_ingestion():
 
     print("Loading dataset...")
     df = pd.read_csv(settings.data_path)
-    df = df.sample(n=settings.ingestion_sample_size, random_state=42)
+    if settings.ingestion_sample_size:
+        df = df.sample(n=settings.ingestion_sample_size, random_state=42)
 
     client = chromadb.PersistentClient(path=settings.vector_store_path)
     embedding_fn = embedding_functions.OpenAIEmbeddingFunction(
