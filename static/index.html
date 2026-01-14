@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hotel Review Intelligence Assistant</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏨 Hotel Review Intelligence Assistant</h1>
+            <p class="subtitle">Query guest feedback using natural language</p>
+        </header>
+
+        <main>
+            <form id="queryForm" class="query-form">
+                <div class="form-group">
+                    <label for="query">Your Question:</label>
+                    <textarea 
+                        id="query" 
+                        name="query" 
+                        placeholder="e.g., Is the wifi reliable in London hotels?"
+                        rows="3"
+                        required
+                    ></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="hotelFilter">Hotel Filter (optional):</label>
+                    <input 
+                        type="text" 
+                        id="hotelFilter" 
+                        name="hotelFilter" 
+                        placeholder="e.g., Hotel Arena"
+                    />
+                </div>
+
+                <button type="submit" id="submitBtn" class="submit-btn">
+                    <span id="submitText">Search Reviews</span>
+                    <span id="loadingSpinner" class="spinner" style="display: none;">⏳</span>
+                </button>
+            </form>
+
+            <div id="results" class="results" style="display: none;">
+                <div class="result-header">
+                    <h2>Answer</h2>
+                    <span id="relevantBadge" class="badge"></span>
+                </div>
+                <div id="answer" class="answer"></div>
+                
+                <div id="sourcesSection" style="display: none;">
+                    <h3>Sources</h3>
+                    <div id="sources" class="sources"></div>
+                </div>
+            </div>
+
+            <div id="error" class="error" style="display: none;"></div>
+        </main>
+
+        <footer>
+            <p>Powered by RAG (Retrieval-Augmented Generation) with recency weighting</p>
+            <p><a href="/metrics-page" style="color: #667eea; text-decoration: none;">View Metrics & Logs →</a></p>
+        </footer>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
