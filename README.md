@@ -40,7 +40,13 @@ Some more optional variables:
 INGESTION_BATCH_SIZE=200
 INGESTION_SAMPLE_SIZE=10000
 DATA_PATH=./data/other_reviews.csv
+RECENCY_WEIGHT=0.3
 ```
+
+**Recency Weighting:** The system prioritizes newer reviews over older ones. `RECENCY_WEIGHT` (0.0-1.0) controls the balance:
+- `0.0` = Only semantic similarity (no recency)
+- `0.3` = 30% recency, 70% similarity (default)
+- `1.0` = Only recency (not recommended)
 
 ### 3. Data Preparation
 Download the [515K Hotel Reviews Data in Europe](https://www.kaggle.com/datasets/jiashenliu/515k-hotel-reviews-data-in-europe?resource=download) dataset from Kaggle.
@@ -63,7 +69,15 @@ Start the FastAPI server using Uvicorn:
 uvicorn src.app:app --reload --host 0.0.0.0 --port 8000
 ```
 
-The API will be available at http://localhost:8000.
+The service will be available at http://localhost:8000.
+
+### Web UI
+Open your browser to http://localhost:8000 to access the interactive web interface for querying hotel reviews.
+
+### Metrics & Monitoring
+- **Metrics Dashboard:** http://localhost:8000/metrics-page - View real-time system metrics (P95 latency, request count, error rate, cost per query)
+- **Metrics API:** http://localhost:8000/metrics - JSON endpoint for programmatic access
+- **Logs:** View structured logs in the terminal/console where the server is running. Logs include request_id, query_text, retrieved_doc_count, grader_decision, and final_latency.
 
 ### Interactive Documentation (Swagger UI)
 Open your browser to http://localhost:8000/docs to test endpoints interactively.
@@ -102,18 +116,43 @@ curl -X POST http://localhost:8000/query \
 ## Project Structure
 ```
 ├── src/
-│   ├── app.py        # FastAPI application & endpoints
-│   ├── config.py     # Settings and environment configuration
-│   ├── ingest.py     # ETL script for populating the vector store
-│   └── rag.py        # Core RAG pipeline (retrieval, grading, generation)
+│   ├── app.py           # FastAPI application, endpoints, and static file serving
+│   ├── config.py        # Settings and environment configuration
+│   ├── ingest.py         # ETL script for populating the vector store
+│   ├── rag.py           # Core RAG pipeline (retrieval with recency, grading, generation)
+│   ├── metrics.py       # In-memory metrics collector (P95 latency, cost, error rate)
+│   └── logging_config.py # Structured logging configuration
+├── static/
+│   ├── index.html       # Main web UI for querying reviews
+│   ├── metrics.html     # Metrics dashboard
+│   ├── app.js           # Frontend JavaScript
+│   └── style.css        # UI styling
 ├── tests/
-│   ├── golden_set.json  # Test cases for LLM-as-a-Judge evaluation
+│   ├── golden_set.json  # 20 test cases for LLM-as-a-Judge evaluation
 │   └── test_eval.py     # Automated quality tests
-├── data/             # Hotel reviews CSV (not committed)
-└── vector_store/     # ChromaDB persistence (not committed)
+├── data/                # Hotel reviews CSV (not committed)
+└── vector_store/        # ChromaDB persistence (not committed)
 ```
 
 ## Architecture
+
+### Key Features
+
+**Recency Weighting:** The system prioritizes newer reviews by:
+- Calculating `days_since_review` from `Review_Date` (relative to today)
+- Retrieving 2-3x more candidates than requested
+- Re-ranking by combining semantic similarity (70%) with recency score (30%)
+- Using exponential decay: reviews 0-30 days old get full weight (1.0), while reviews >365 days get reduced weight (0.2)
+
+**Metrics & Observability:**
+- Real-time metrics dashboard at `/metrics-page`
+- Structured logging to console with request tracking
+- Tracks P95 latency, request count, error rate, retrieval failures, and cost per query
+
+**Web UI:**
+- Responsive interface for querying reviews
+- Real-time metrics visualization
+- Source citations for transparency
 
 For detailed architecture decisions, system design, scaling strategies, and failure modes, see [DESIGN.md](./DESIGN.md).
 

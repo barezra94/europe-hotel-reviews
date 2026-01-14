@@ -11,24 +11,32 @@ The system follows an **Advanced RAG** architecture with a "Self-Correction" loo
 1.  **Ingestion (Offline):**
     * **Input:** Raw CSV (`Hotel_Reviews.csv`).
     * **Processing:** Merges `Positive_Review` and `Negative_Review` into a single semantic chunk.
-    * **Metadata Extraction:** Parses `Tags`, `Hotel_Name`, and `City` to enable **Hybrid Search** (Vector + Metadata Filtering).
+    * **Metadata Extraction:** Parses `Tags`, `Hotel_Name`, `Reviewer_Nationality`, and `Review_Date` to enable **Hybrid Search** (Vector + Metadata Filtering) and **Recency Weighting**. Calculates `days_since_review` dynamically from `Review_Date` (relative to today).
     * **Embedding:** `text-embedding-3-small` (1536d) stored in **ChromaDB**.
 
 2.  **Serving (Online):**
-    * **Query Analysis:** User input is parsed; optional filters (e.g., "Hotel X") are extracted.
-    * **Hybrid Retrieval:** Performs a vector search constrained by metadata filters (e.g., `WHERE hotel_name = 'The Ritz'`).
+    * **Query Analysis:** User input is parsed via FastAPI; optional filters (e.g., "Hotel X") are extracted.
+    * **Hybrid Retrieval with Recency Weighting:** 
+        * Retrieves 2-3x more candidates than requested (more when filtering by hotel)
+        * Performs vector search constrained by metadata filters
+        * Re-ranks results by combining semantic similarity (70% default) with recency score (30% default)
+        * Recency scoring uses exponential decay: 0-30 days = 1.0, 30-90 = 0.8, 90-180 = 0.6, 180-365 = 0.4, >365 = 0.2
+        * Returns top k documents after re-ranking
     * **Self-Correction (The "Gatekeeper"):** A dedicated LLM call grades the retrieved context.
         * *Pass:* Context is sent to the Generator.
         * *Fail:* System returns a "No Information" fallback to prevent hallucination.
-    * **Generation:** `gpt-4o-mini` synthesizes the answer, citing sources.
+    * **Generation:** `gpt-4o-mini` synthesizes the answer, prioritizing information from recent reviews when available.
+    * **Metrics & Logging:** All requests are tracked with structured logging and metrics collection (latency, token usage, errors).
 
 ### 2.2 Component Diagram
 
-[User] -> [FastAPI Service]
-       -> [Orchestrator]
-          -> 1. [ChromaDB] (Hybrid Search)
-          -> 2. [LLM Grader] (Relevance Check)
-          -> 3. [LLM Generator] (Final Answer)
+[User/Web UI] -> [FastAPI Service]
+              -> [RAGPipeline]
+                 -> 1. [ChromaDB] (Hybrid Search with Recency Weighting)
+                 -> 2. [LLM Grader] (Relevance Check)
+                 -> 3. [LLM Generator] (Final Answer)
+              -> [Metrics Collector] (P95 Latency, Cost, Error Rate)
+              -> [Structured Logging] (Request Tracking)
 
 ---
 
@@ -39,22 +47,27 @@ graph TD
     classDef db fill:#fff3e0,stroke:#e65100,stroke-width:2px;
     classDef llm fill:#f3e5f5,stroke:#4a148c,stroke-width:2px;
     classDef decision fill:#fff9c4,stroke:#fbc02d,stroke-width:2px,stroke-dasharray: 5 5;
+    classDef ui fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+    classDef metrics fill:#fce4ec,stroke:#c2185b,stroke-width:2px;
 
     %% -- Ingestion Pipeline (Offline) --
     subgraph Ingestion ["1. Data Ingestion (Offline)"]
         Raw[("Raw CSV - 515K Reviews")] -->|Load & Sample| Process[Build Documents - Merge Positive/Negative Reviews]
-        Process -->|Extract Metadata| Meta[Parse Tags, Hotel Name, Reviewer Nationality]
-        Meta -->|Batch Add| VectorDB[("ChromaDB - Auto-embed with text-embedding-3-small")]
+        Process -->|Extract Metadata| Meta[Parse Tags, Hotel Name, Reviewer Nationality, Review Date]
+        Meta -->|Calculate Days Since| Recency[Calculate days_since_review from Review_Date]
+        Recency -->|Batch Add| VectorDB[("ChromaDB - Auto-embed with text-embedding-3-small")]
     end
 
     %% -- Serving Pipeline (Online) --
     subgraph Serving ["2. Serving Pipeline (Online)"]
-        User((CX Agent)) -->|POST /query| API[FastAPI Endpoint]
+        User((CX Agent)) -->|Web UI or API| API[FastAPI Endpoint]
         API -->|Calls| RAG[RAGPipeline.query]
         
-        %% Step 1: Retrieval
-        RAG -->|retrieve_documents| VectorDB
-        VectorDB -->|Top 5 Docs| RAG
+        %% Step 1: Retrieval with Recency
+        RAG -->|retrieve_documents - Get 2-3x Candidates| VectorDB
+        VectorDB -->|Many Candidates| RAG
+        RAG -->|Re-rank by Similarity + Recency| ReRank[Recency Weighting - 70% Similarity + 30% Recency]
+        ReRank -->|Top k Docs| RAG
         
         %% Step 2: Self-Correction Loop
         RAG -->|check_relevance| Grader{{LLM Grader - gpt-4o-mini}}
@@ -71,16 +84,22 @@ graph TD
         
         RAG -->|Response Dict| API
         API -->|JSON| User
+        API -->|HTML| WebUI[Web UI Dashboard]
     end
 
     %% -- Observability --
-    RAG -.->|Log: Latency, Cost, Grade| Logs[("Observability - Logs/Metrics")]
+    RAG -->|Record Metrics| Metrics[("Metrics Collector - P95 Latency, Request Count, Error Rate, Cost")]
+    RAG -->|Structured Logs| Logs[("Structured Logging - request_id, query_text, latency, grader_decision")]
+    Metrics -->|GET /metrics| MetricsAPI[Metrics API Endpoint]
+    MetricsAPI -->|Display| WebUI
 
     %% Apply Styles
-    class API,Process,Meta,RAG service;
-    class VectorDB,Raw,Logs db;
+    class API,Process,Meta,Recency,ReRank,RAG service;
+    class VectorDB,Raw db;
     class Generator,Grader llm;
     class Check decision;
+    class WebUI,User ui;
+    class Metrics,Logs,MetricsAPI metrics;
 ```
 
 ## 3. Key Architectural Decisions & Tradeoffs
@@ -91,20 +110,40 @@ graph TD
 | **Hybrid Search** | Vector Only | **Precision.** Vector search struggles with exact keyword constraints (e.g., specific hotel names). Metadata filtering ensures we only search relevant reviews. |
 | **Self-Correction Loop** | Linear Pipeline | **Safety.** A "Grader" step increases latency slightly but critically prevents "unsupported claims" by blocking irrelevant context before generation. |
 | **Model: gpt-4o-mini** | Llama 3 (Local) | **Reliability & Cost.** `4o-mini` offers the best balance of reasoning capability and cost for this prototype constraint. |
+| **Recency Weighting** | Semantic Only | **Temporal Relevance.** Hotel conditions change over time. Newer reviews (0-30 days) are weighted 1.0x, older reviews (>365 days) are weighted 0.2x, ensuring answers reflect current hotel state. |
+| **Web UI** | API Only | **Usability.** Provides an intuitive interface for CX agents to query reviews without needing API knowledge. Includes real-time metrics dashboard. |
+| **In-Memory Metrics** | External Service | **Simplicity.** For prototype, in-memory metrics are sufficient. Can migrate to Prometheus/Datadog for production. |
 
 ---
 
 ## 4. Observability & Monitoring Plan
 
-### 4.1 Metrics (Datadog / Prometheus)
-* **P95 Latency:** Tracking the end-to-end response time.
+### 4.1 Metrics (Implemented)
+* **Implementation:** In-memory metrics collector (`src/metrics.py`) with global singleton pattern.
+* **P95 Latency:** Tracking the end-to-end response time from all requests.
     * *Target:* < 2.0s for prototype; < 500ms for retrieval.
-* **Retrieval Failure Rate:** The % of queries where the "Self-Correction" grader returns `False`.
+    * *Calculation:* Maintains last 1000 latency samples, calculates 95th percentile.
+* **Retrieval Failure Rate:** The % of queries where the "Self-Correction" grader returns `False` or no documents are found.
     * *Signal:* A spike indicates data drift or that the embedding model is failing to capture user intent.
 * **Cost Per Query:** Tracking token usage (Input/Output) to manage `4o-mini` budget.
+    * *Pricing Assumption:* $0.15 per 1M input tokens, $0.60 per 1M output tokens (gpt-4o-mini).
+* **Access:** 
+    * Web Dashboard: `http://localhost:8000/metrics-page`
+    * API Endpoint: `GET /metrics` returns JSON summary
+* **Note:** Metrics are in-memory and reset on server restart.
 
-### 4.2 Logging
-* **Structured Logs:** JSON logs capturing `request_id`, `query_text`, `retrieved_doc_ids`, `grader_decision`, and `final_latency`.
+### 4.2 Logging (Implemented)
+* **Implementation:** Structured logging via `src/logging_config.py` with custom formatter.
+* **Format:** Pipe-delimited key-value pairs output to stdout (terminal/console).
+* **Fields Captured:** 
+    * `timestamp`, `level`, `message` (always present)
+    * `request_id` (unique UUID per request)
+    * `query_text`, `hotel_filter` (query details)
+    * `retrieved_doc_count`, `grader_decision` (retrieval results)
+    * `final_latency` (performance data)
+    * `error` (if errors occur)
+* **Log Levels:** INFO for normal operations, WARNING for recoverable issues, ERROR for failures.
+* **Third-party Noise:** ChromaDB and httpx logs are suppressed to WARNING level.
 
 ### 4.3 Quality Evaluation (Golden Set)
 * **Automated Regression Testing:** An "LLM-as-a-Judge" pipeline runs on every PR.
