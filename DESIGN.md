@@ -167,23 +167,17 @@ graph TD
 
 Scaling to **50M documents** introduces specific challenges in **Indexing** and **Infrastructure Costs**.
 
-### 6.1 Indexing Strategy: HNSW + Quantization
-* **Challenge:** 50M vectors (1536d) require ~300GB of RAM using `float32`. This is cost-prohibitive.
-* **Solution:** Move to **HNSW (Hierarchical Navigable Small World)** with **Product Quantization (PQ)** or **Scalar Quantization (SQ8)**.
-    * *Impact:* Reduces memory footprint by **4x-8x** (down to ~40GB) with negligible loss in recall.
-    * *Latency:* HNSW ensures $O(\log N)$ search complexity, maintaining sub-second retrieval.
-
-### 6.2 Data Partitioning (Sharding)
+### 6.1 Data Partitioning (Sharding)
 * **Challenge:** A single node cannot handle the write throughput or CPU load of 50M docs.
 * **Solution:** **Random Sharding** (Review-based).
     * *Why not Hotel-based?* "Hot Partition" risk. A popular hotel (e.g., "The Ritz") would overload one shard.
     * *Implementation:* Distribute reviews randomly across 3-5 nodes. The query aggregator performs a "Scatter-Gather" search across all shards in parallel.
 
-### 6.3 Caching Strategy
+### 6.2 Caching Strategy
 * **Semantic Cache (Redis):** Cache the *embedding* of common queries.
     * If a user asks "Breakfast at the Hilton?", we check the cache first.
     * *Benefit:* Eliminates LLM and Vector DB latency for the top 20% of repeated queries.
 
-### 6.4 Streaming Ingestion
+### 6.3 Streaming Ingestion
 * **Migration:** Move from batch scripts (`ingest.py`) to a **Kafka-based** streaming pipeline.
     * New reviews are pushed to a Kafka topic $\rightarrow$ Embedded by a worker service $\rightarrow$ Upserted to the Vector DB in near real-time.
